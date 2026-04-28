@@ -9,7 +9,12 @@ export async function fetchArticles({ tab, keywords, page, deviceId }) {
     query.set("keywords", keywords.join(","));
   }
 
-  const endpoint = tab === "new" ? "/articles/new" : "/articles";
+  let endpoint = "/articles";
+  if (tab === "new") {
+    endpoint = "/articles/new";
+  } else if (tab === "liked") {
+    endpoint = "/articles/liked";
+  }
   if (tab === "archives") {
     query.set("seen", "archives");
   }
@@ -32,5 +37,19 @@ export async function markArticleRead(articleId, deviceId) {
   });
   if (!response.ok) {
     throw new Error("Failed to mark article as read");
+  }
+}
+
+export async function setArticleLiked(articleId, deviceId, liked) {
+  const response = await fetch(`${API_BASE_URL}/articles/mark-liked`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ articleId, deviceId, liked })
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to update liked state");
   }
 }

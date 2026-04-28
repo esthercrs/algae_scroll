@@ -4,10 +4,54 @@ const parser = new XMLParser({
   ignoreAttributes: false
 });
 
-function normalizeKeywords(text) {
+const KEYWORD_RULES = [
+  { tag: "algae", patterns: ["algae", "algal", "microalga", "seaweed"] },
+  { tag: "hab", patterns: ["harmful algal bloom", "harmful bloom", "hab"] },
+  { tag: "genomics", patterns: ["genomic", "genomics", "transcriptom", "metagenom", "dna", "rna"] },
+  { tag: "phytoplankton", patterns: ["phytoplankton", "diatom", "dinoflagellate", "cyanobacter"] },
+  { tag: "toxin", patterns: ["toxin", "toxicity", "cyanotoxin", "domoic acid", "saxitoxin"] },
+  { tag: "bloom", patterns: ["bloom", "eutrophication"] },
+  { tag: "monitoring", patterns: ["monitoring", "detection", "forecast", "remote sensing"] },
+  { tag: "climate", patterns: ["climate", "warming", "temperature", "heatwave"] }
+];
+
+function asArray(value) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function cleanText(text) {
+  return (text || "").replace(/\s+/g, " ").trim();
+}
+
+function extractKeywords(text) {
   const content = (text || "").toLowerCase();
-  const candidates = ["algae", "hab", "genomics", "phytoplankton", "toxin", "bloom"];
-  return candidates.filter((kw) => content.includes(kw));
+  return KEYWORD_RULES.filter((rule) => rule.patterns.some((pattern) => content.includes(pattern))).map(
+    (rule) => rule.tag
+  );
+}
+
+function extractAbstractText(pubmedArticle) {
+  const abstractNode = pubmedArticle?.MedlineCitation?.Article?.Abstract?.AbstractText;
+  const chunks = asArray(abstractNode).map((part) => {
+    if (typeof part === "string") return part;
+    if (part?.["#text"]) return part["#text"];
+    return "";
+  });
+  return cleanText(chunks.join(" "));
+}
+
+function buildPubMedAbstractMap(parsedXml) {
+  const articles = asArray(parsedXml?.PubmedArticleSet?.PubmedArticle);
+  const map = new Map();
+
+  for (const article of articles) {
+    const pmid = cleanText(article?.MedlineCitation?.PMID?.["#text"] || article?.MedlineCitation?.PMID);
+    if (!pmid) continue;
+    map.set(pmid, extractAbstractText(article));
+  }
+
+  return map;
 }
 
 export async function fetchPubMedArticles(limit = 10) {
@@ -27,22 +71,29 @@ export async function fetchPubMedArticles(limit = 10) {
   const detailsUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&retmode=json&id=${ids.join(",")}`;
   const detailsRes = await fetch(detailsUrl);
   const detailsJson = await detailsRes.json();
+  const abstractUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&retmode=xml&id=${ids.join(",")}`;
+  const abstractRes = await fetch(abstractUrl);
+  const abstractXml = await abstractRes.text();
+  const abstractMap = buildPubMedAbstractMap(parser.parse(abstractXml));
 
   return ids
     .map((id) => detailsJson?.result?.[id])
     .filter(Boolean)
     .map((item) => {
       const title = item.title || "Untitled PubMed article";
-      const summaryText = `${title} ${(item?.sortfirstauthor || "").trim()}`;
+      const abstract = abstractMap.get(item.uid) || "";
+      const textBlob = `${title} ${abstract}`;
       const doi = item?.articleids?.find((v) => v.idtype === "doi")?.value;
       return {
         sourceId: `pubmed:${item.uid}`,
         sourceName: "pubmed",
         title,
-        abstract: item?.elocationid || summaryText,
+        abstract: abstract || item?.elocationid || title,
         doiUrl: doi ? `https://doi.org/${doi}` : `https://pubmed.ncbi.nlm.nih.gov/${item.uid}/`,
         publicationDate: item?.pubdate ? new Date(item.pubdate) : null,
-        keywords: normalizeKeywords(summaryText)
+        keywords: extractKeywords(textBlob),
+        imageUrls: [],
+        imageCaptions: []
       };
     });
 }
@@ -70,7 +121,9 @@ export async function fetchArxivArticles(limit = 10) {
         abstract: summary,
         doiUrl: id,
         publicationDate: entry.published ? new Date(entry.published) : null,
-        keywords: normalizeKeywords(textBlob)
+        keywords: extractKeywords(textBlob),
+        imageUrls: [],
+        imageCaptions: []
       };
     });
 }

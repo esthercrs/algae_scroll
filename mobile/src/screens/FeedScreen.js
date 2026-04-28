@@ -1,13 +1,22 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Dimensions, FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { fetchArticles, markArticleRead } from "../api";
+import { fetchArticles, markArticleRead, setArticleLiked } from "../api";
 import { ArticleCard } from "../components/ArticleCard";
 import { KeywordSelector } from "../components/KeywordSelector";
 import { useDeviceId } from "../hooks/useDeviceId";
 
 const { height } = Dimensions.get("window");
+const CACHE_VERSION = "v2";
 
 export function FeedScreen({ tab }) {
   const deviceId = useDeviceId();
@@ -15,6 +24,7 @@ export function FeedScreen({ tab }) {
   const [page, setPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [selectedKeywords, setSelectedKeywords] = useState([]);
   const [hasMore, setHasMore] = useState(true);
   const viewabilityConfig = useMemo(() => ({ itemVisiblePercentThreshold: 80 }), []);
@@ -23,7 +33,7 @@ export function FeedScreen({ tab }) {
   const latestPageLoadedRef = useRef(0);
   const ITEMS_PER_PAGE = 10;
 
-  const storageKey = `cache:${tab}:${selectedKeywords.join("-") || "all"}`;
+  const storageKey = `cache:${CACHE_VERSION}:${tab}:${selectedKeywords.join("-") || "all"}`;
 
   const loadPage = useCallback(
     async (targetPage, reset = false) => {
@@ -33,6 +43,7 @@ export function FeedScreen({ tab }) {
       loadingRef.current = true;
       setLoading(true);
       try {
+        setErrorMessage("");
         const data = await fetchArticles({
           tab,
           keywords: selectedKeywords,
@@ -48,6 +59,10 @@ export function FeedScreen({ tab }) {
           AsyncStorage.setItem(storageKey, JSON.stringify(nextItems));
           return nextItems;
         });
+      } catch (error) {
+        setErrorMessage(
+          "Impossible de charger les articles. Verifie EXPO_PUBLIC_API_BASE_URL et que le backend tourne."
+        );
       } finally {
         loadingRef.current = false;
         setLoading(false);
@@ -98,6 +113,9 @@ export function FeedScreen({ tab }) {
       markedRef.current.add(id);
       try {
         await markArticleRead(id, deviceId);
+        // Keep "Nouveautes" truly unread by removing items
+        // immediately once they are viewed.
+        setItems((prev) => prev.filter((item) => item.id !== id));
       } catch {
         // Fail silently for MVP; next refresh can retry.
       }
@@ -110,6 +128,28 @@ export function FeedScreen({ tab }) {
     );
   }, []);
 
+  const onToggleLike = useCallback(
+    async (article) => {
+      if (!deviceId) return;
+      const nextLiked = !article.is_liked;
+      setItems((prev) =>
+        prev.map((item) => (item.id === article.id ? { ...item, is_liked: nextLiked } : item))
+      );
+      try {
+        await setArticleLiked(article.id, deviceId, nextLiked);
+        if (tab === "liked" && !nextLiked) {
+          setItems((prev) => prev.filter((item) => item.id !== article.id));
+        }
+      } catch {
+        // Revert optimistic update on error.
+        setItems((prev) =>
+          prev.map((item) => (item.id === article.id ? { ...item, is_liked: article.is_liked } : item))
+        );
+      }
+    },
+    [deviceId, tab]
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <KeywordSelector selected={selectedKeywords} onToggle={toggleKeyword} />
@@ -119,7 +159,7 @@ export function FeedScreen({ tab }) {
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <View style={styles.page}>
-            <ArticleCard article={item} />
+            <ArticleCard article={item} onToggleLike={onToggleLike} />
           </View>
         )}
         pagingEnabled
@@ -132,6 +172,15 @@ export function FeedScreen({ tab }) {
         onViewableItemsChanged={onViewableItemsChanged}
         contentContainerStyle={styles.listContent}
         ListFooterComponent={loading ? <ActivityIndicator color="#64D2FF" /> : null}
+        ListEmptyComponent={
+          !loading ? (
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyText}>
+                {errorMessage || "Aucun article pour ce filtre. Essaie de retirer des mots-cles."}
+              </Text>
+            </View>
+          ) : null
+        }
       />
     </SafeAreaView>
   );
@@ -143,9 +192,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#000"
   },
   listContent: {
-    paddingBottom: 20
+    paddingBottom: 20,
+    flexGrow: 1
   },
   page: {
     height: height - 90
+  },
+  emptyWrap: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20
+  },
+  emptyText: {
+    color: "#9CA3AF",
+    textAlign: "center"
   }
 });

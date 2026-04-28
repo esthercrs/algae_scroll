@@ -44,6 +44,40 @@ npm run dev
 
 API base URL: `http://localhost:4000`
 
+### Local open-source summarization (recommended, lowest cost)
+
+The backend can use a local Ollama model for summaries/key points (no paid API).
+
+1. Install Ollama (macOS):
+
+```bash
+brew install ollama
+```
+
+2. Start Ollama server:
+
+```bash
+ollama serve
+```
+
+3. Pull a model:
+
+```bash
+ollama pull qwen2.5:7b-instruct
+```
+
+4. In `backend/.env` set:
+
+```env
+SUMMARY_PROVIDER=ollama
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=qwen2.5:7b-instruct
+```
+
+Notes:
+- `SUMMARY_PROVIDER=openai` uses OpenAI API key if preferred.
+- `SUMMARY_PROVIDER=none` disables LLM and uses extractive fallback only.
+
 Endpoints:
 - `GET /articles?keywords=algae,hab&deviceId=my-device&page=1&limit=10`
 - `GET /articles/new?keywords=algae&deviceId=my-device&page=1&limit=10`

@@ -16,11 +16,15 @@ const statements = [
     keywords TEXT[] DEFAULT '{}',
     simplified_french TEXT,
     key_points TEXT[] DEFAULT '{}',
+    image_urls TEXT[] DEFAULT '{}',
+    image_captions TEXT[] DEFAULT '{}',
     figure_url TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
   );
   `,
+  `ALTER TABLE articles ADD COLUMN IF NOT EXISTS image_urls TEXT[] DEFAULT '{}';`,
+  `ALTER TABLE articles ADD COLUMN IF NOT EXISTS image_captions TEXT[] DEFAULT '{}';`,
   `
   CREATE TABLE IF NOT EXISTS article_views (
     id SERIAL PRIMARY KEY,
@@ -30,8 +34,18 @@ const statements = [
     UNIQUE (device_id, article_id)
   );
   `,
+  `
+  CREATE TABLE IF NOT EXISTS article_likes (
+    id SERIAL PRIMARY KEY,
+    device_id TEXT NOT NULL,
+    article_id INTEGER NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    liked_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (device_id, article_id)
+  );
+  `,
   `CREATE INDEX IF NOT EXISTS idx_articles_pub_date ON articles(publication_date DESC);`,
-  `CREATE INDEX IF NOT EXISTS idx_articles_keywords ON articles USING GIN(keywords);`
+  `CREATE INDEX IF NOT EXISTS idx_articles_keywords ON articles USING GIN(keywords);`,
+  `CREATE INDEX IF NOT EXISTS idx_article_likes_device ON article_likes(device_id);`
 ];
 
 async function initDb() {

@@ -11,11 +11,16 @@ export async function ingestArticles() {
 
   let saved = 0;
   for (const article of combined) {
-    const { simplifiedFrench, keyPoints } = await summarizeAbstract(article.abstract);
+    const { simplifiedFrench, keyPoints } = await summarizeAbstract({
+      title: article.title,
+      abstract: article.abstract
+    });
     await upsertArticle({
       ...article,
       simplifiedFrench,
-      keyPoints
+      keyPoints,
+      imageUrls: article.imageUrls ?? [],
+      imageCaptions: article.imageCaptions ?? []
     });
     saved += 1;
   }

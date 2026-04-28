@@ -27,6 +27,11 @@ export default function App() {
           options={{ title: "Archives" }}
           children={() => <FeedScreen tab="archives" />}
         />
+        <Tab.Screen
+          name="Aimes"
+          options={{ title: "Aimes" }}
+          children={() => <FeedScreen tab="liked" />}
+        />
       </Tab.Navigator>
     </NavigationContainer>
   );

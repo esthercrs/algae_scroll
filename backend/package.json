@@ -8,7 +8,8 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "db:init": "node src/scripts/initDb.js",
-    "ingest": "node src/scripts/ingestNow.js"
+    "ingest": "node src/scripts/ingestNow.js",
+    "summaries:reprocess": "node src/scripts/reprocessSummaries.js"
   },
   "engines": {
     "node": ">=18"
