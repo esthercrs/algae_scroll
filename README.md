@@ -67,54 +67,6 @@ npm run start
 
 Then open iOS/Android simulator or Expo Go.
 
-## Installable builds (TestFlight + Android)
-
-To use the app without your computer running Expo, build binaries with EAS.
-
-### 1) Prepare mobile config
-
-```bash
-cd mobile
-cp .env.example .env
-```
-
-Edit `.env` and set:
-- `EXPO_PUBLIC_API_BASE_URL` to a hosted API URL (not localhost), for example `https://api.my-domain.com`
-- Optional package IDs:
-  - `EXPO_PUBLIC_IOS_BUNDLE_ID` (default: `com.escros.algaescroll`)
-  - `EXPO_PUBLIC_ANDROID_PACKAGE` (default: `com.escros.algaescroll`)
-
-### 2) Initialize EAS project
-
-```bash
-npx eas-cli login
-npx eas-cli init
-```
-
-Then copy the generated project id into `mobile/.env`:
-- `EXPO_PROJECT_ID=<value>`
-
-### 3) Build production binaries
-
-```bash
-cd mobile
-npm run build:ios
-npm run build:android
-```
-
-### 4) Submit to stores
-
-```bash
-cd mobile
-npm run submit:ios
-npm run submit:android
-```
-
-Notes:
-- iOS build appears in App Store Connect, then distribute via TestFlight.
-- Android build can be uploaded to Google Play (Internal testing first).
-- Once installed from TestFlight/Play, users no longer depend on your computer, but the backend must stay online.
-
 ## Notes
 
 - OpenAI integration is currently a placeholder fallback in `backend/src/services/aiProcessor.js`.
